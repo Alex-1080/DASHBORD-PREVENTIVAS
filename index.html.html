@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Manutenção Preventiva - Shopping Cidade Jardim</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS para ler Excel e CSV no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP HEADER -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-emerald-500 rounded-lg text-slate-900 font-bold">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">Shopping Cidade Jardim</h1>
+          <p class="text-xs text-slate-400">Dashboard de Controlo de Preventivas • Anual</p>
+        </div>
+      </div>
+
+      <!-- FILE UPLOAD, CLEAR & EXPORT -->
+      <div class="flex items-center gap-3">
+        <label class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer shadow-sm transition-all">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <span>Importar Ficheiro Excel / CSV</span>
+          <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFile(event)">
+        </label>
+        
+        <button onclick="clearData()" id="btnClear" class="hidden bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-sm transition-all" title="Limpar dados e carregar outra planilha">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>Limpar Dados</span>
+        </button>
+
+        <button onclick="exportToCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-all">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Exportar Filtrados</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- INSTRUCTIONS BANNER IF NO FILE -->
+    <div id="welcomeBanner" class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 text-indigo-900 flex items-start gap-3">
+      <i data-lucide="info" class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+      <div>
+        <h2 class="font-bold text-sm">Bem-vindo ao Painel de Preventivas</h2>
+        <p class="text-xs text-indigo-700 mt-1">Para começar, clique em <strong>"Importar Ficheiro Excel / CSV"</strong>. O painel vai analisar todos os meses (Janeiro a Dezembro) e detetar automaticamente qualquer data de realização.</p>
+      </div>
+    </div>
+
+    <!-- KPI CARDS BAR -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-500">
+          <span class="text-xs font-semibold uppercase tracking-wider">Total Dispositivos</span>
+          <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpiTotal" class="text-2xl font-bold text-slate-900">0</span>
+          <span class="text-xs text-slate-500">registos</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-500">
+          <span class="text-xs font-semibold uppercase tracking-wider">Realizadas</span>
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpiRealizados" class="text-2xl font-bold text-emerald-600">0</span>
+          <span id="kpiPercentRealizados" class="text-xs text-emerald-600 font-medium">0%</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-500">
+          <span class="text-xs font-semibold uppercase tracking-wider">Pendentes</span>
+          <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpiPendentes" class="text-2xl font-bold text-amber-600">0</span>
+          <span class="text-xs text-amber-600 font-medium">por realizar</span>
+        </div>
+      </div>
+
+      <!-- CARD DINÂMICO DO FILTRO DE TIPO -->
+      <div class="bg-indigo-50/70 rounded-xl p-4 shadow-sm border border-indigo-200 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-indigo-700">
+          <span id="kpiTipoLabel" class="text-xs font-bold uppercase tracking-wider">Filtro de Tipo Selecionado</span>
+          <i data-lucide="filter" class="w-4 h-4 text-indigo-600"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpiTipoValor" class="text-2xl font-bold text-indigo-900">0</span>
+          <span id="kpiTipoSub" class="text-xs text-indigo-700 font-medium">Selecione um tipo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY SECTION WITH FILTERS -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden">
+      <div class="p-4 sm:p-5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="list-filter" class="w-5 h-5 text-indigo-600"></i>
+            Inventário & Controlo Geral de Preventivas
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Filtre por sistema, andar, tipo, status ou selecione uma data exata de realização</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative flex-1 sm:w-40">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+            <input type="text" id="filterSearch" oninput="applyFilters()" placeholder="Pesquisar..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+
+          <!-- FILTRO DE DATA ESPECÍFICA -->
+          <div class="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1">
+            <span class="text-[11px] font-semibold text-slate-500">Data:</span>
+            <input type="date" id="filterDate" onchange="applyFilters()" class="text-xs bg-transparent focus:outline-none font-medium text-slate-700 cursor-pointer">
+            <button onclick="clearDateFilter()" title="Limpar Data" class="text-slate-400 hover:text-slate-600 text-xs px-1">✕</button>
+          </div>
+
+          <select id="filterSistema" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium">
+            <option value="">Todos os Sistemas</option>
+          </select>
+
+          <select id="filterAndar" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium">
+            <option value="">Todos os Andares</option>
+          </select>
+
+          <select id="filterTipo" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium">
+            <option value="">Todos os Tipos</option>
+          </select>
+
+          <select id="filterStatus" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold text-slate-700">
+            <option value="">Todos os Status</option>
+            <option value="REALIZADO">✅ Realizados (Com Data)</option>
+            <option value="PENDENTE">⏳ Pendentes (Sem Data)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="overflow-x-auto custom-scrollbar" style="max-height: 450px;">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
+              <th class="py-3 px-4 text-center">Status</th>
+              <th class="py-3 px-4">Sistema</th>
+              <th class="py-3 px-4">Data da Preventiva</th>
+              <th class="py-3 px-4">Andar</th>
+              <th class="py-3 px-4">Tipo de Equipamento</th>
+              <th class="py-3 px-4">Equipamento / Descrição</th>
+              <th class="py-3 px-4 text-center">Periodicidade</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100 text-slate-700">
+            <tr>
+              <td colspan="7" class="py-12 text-center text-slate-400">
+                <i data-lucide="file-spreadsheet" class="w-10 h-10 mx-auto mb-2 opacity-40"><span>Nenhum ficheiro importado ainda.</span></i>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- FOOTER PAGINATION INFO -->
+      <div class="p-4 bg-slate-50/50 border-t border-slate-200/80 flex justify-between items-center text-xs text-slate-500">
+        <div>Mostrando <span id="lblCount" class="font-bold text-slate-800">0</span> registos filtrados</div>
+      </div>
+    </div>
+
+    <!-- PAINEL EXCLUSIVO DE DISPOSITIVOS PENDENTES -->
+    <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+      <div class="p-4 sm:p-5 border-b border-amber-200 bg-amber-50/50 flex justify-between items-center">
+        <div>
+          <h2 class="text-base font-bold text-amber-900 flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600"></i>
+            Painel de Alerta: Dispositivos Pendentes (Sem Data de Realização)
+          </h2>
+          <p class="text-xs text-amber-700 mt-0.5">Lista exclusiva de todos os equipamentos que ainda aguardam execução da preventiva</p>
+        </div>
+        <span id="lblPendentesCount" class="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-800 rounded-full border border-amber-300">
+          0 Pendentes
+        </span>
+      </div>
+
+      <div class="overflow-x-auto custom-scrollbar" style="max-height: 350px;">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-amber-50/80 text-amber-900 font-semibold uppercase tracking-wider border-b border-amber-200 sticky top-0 z-10">
+              <th class="py-2.5 px-4">Sistema</th>
+              <th class="py-2.5 px-4">Data da Preventiva</th>
+              <th class="py-2.5 px-4">Andar</th>
+              <th class="py-2.5 px-4">Tipo de Equipamento</th>
+              <th class="py-2.5 px-4">Equipamento / Descrição</th>
+              <th class="py-2.5 px-4 text-center">Periodicidade</th>
+            </tr>
+          </thead>
+          <tbody id="tablePendentesBody" class="divide-y divide-amber-100 text-slate-700">
+            <tr>
+              <td colspan="6" class="py-8 text-center text-slate-400">Nenhum dispositivo pendente encontrado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let processedData = [];
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          parseSheetData(rows);
+        } catch (err) {
+          alert("Erro ao ler o ficheiro: " + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function parseSheetData(rows) {
+      if (rows.length < 3) {
+        alert("O formato do ficheiro parece inválido ou vazio.");
+        return;
+      }
+
+      processedData = [];
+      let startRow = 2;
+      for (let i = 0; i < rows.length; i++) {
+        let rowStr = String(rows[i][0] || '').toUpperCase();
+        if (rowStr.includes("SISTEMA")) {
+          startRow = i + 1;
+          break;
+        }
+      }
+
+      for (let i = startRow; i < rows.length; i++) {
+        let row = rows[i];
+        if (!row || row.length === 0) continue;
+        
+        let sistema = String(row[0] || '').trim();
+        let andar = String(row[1] || '').trim();
+        let tipo = String(row[2] || '').trim();
+        let equipamento = String(row[3] || '').trim();
+        let periodo = String(row[5] || '').trim();
+
+        if (!sistema && !andar && !equipamento) continue;
+
+        let foundDateStr = "";
+        let foundDateISO = "";
+        let isRealizado = false;
+
+        for (let c = 6; c < row.length; c++) {
+          let rawVal = row[c];
+          if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+            if (rawVal instanceof Date) {
+              let d = String(rawVal.getDate()).padStart(2, '0');
+              let m = String(rawVal.getMonth() + 1).padStart(2, '0');
+              let y = rawVal.getFullYear();
+              foundDateStr = `${d}/${m}/${y}`;
+              foundDateISO = `${y}-${m}-${d}`;
+              isRealizado = true;
+              break;
+            } else {
+              let strVal = String(rawVal).trim();
+              if (strVal.length >= 8 || strVal.includes('-') || strVal.includes('/')) {
+                if (strVal.includes('T')) {
+                  let parts = strVal.split('T')[0].split('-');
+                  if (parts.length === 3) {
+                    foundDateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    foundDateISO = strVal.split('T')[0];
+                  } else {
+                    foundDateStr = strVal.split('T')[0];
+                    foundDateISO = strVal.split('T')[0];
+                  }
+                } else if (strVal.includes('-')) {
+                  let parts = strVal.split('-');
+                  if (parts.length === 3 && parts[0].length === 4) {
+                    foundDateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    foundDateISO = strVal;
+                  } else {
+                    foundDateStr = strVal;
+                    foundDateISO = "";
+                  }
+                } else {
+                  foundDateStr = strVal;
+                  foundDateISO = "";
+                }
+                isRealizado = true;
+                break;
+              }
+            }
+          }
+        }
+
+        processedData.push({
+          id: i,
+          sistema: sistema || 'GERAL',
+          andar: andar || 'N/D',
+          tipo: tipo || 'EQUIPAMENTO',
+          equipamento: equipamento || 'Sem descrição',
+          periodo: periodo || 'ANUAL',
+          dataJunho: foundDateStr,
+          dataISO: foundDateISO,
+          status: isRealizado ? 'REALIZADO' : 'PENDENTE'
+        });
+      }
+
+      if (processedData.length === 0) {
+        alert("Nenhum dado encontrado. Verifique se o ficheiro está correto.");
+        return;
+      }
+
+      document.getElementById('welcomeBanner').classList.add('hidden');
+      document.getElementById('btnClear').classList.remove('hidden');
+      populateDropdowns();
+      applyFilters();
+      lucide.createIcons();
+    }
+
+    function clearData() {
+      if (confirm("Deseja realmente limpar os dados atuais e carregar outra planilha?")) {
+        processedData = [];
+        document.getElementById('fileInput').value = '';
+        document.getElementById('welcomeBanner').classList.remove('hidden');
+        document.getElementById('btnClear').classList.add('hidden');
+
+        // Resetar KPIs
+        document.getElementById('kpiTotal').textContent = '0';
+        document.getElementById('kpiRealizados').textContent = '0';
+        document.getElementById('kpiPercentRealizados').textContent = '0% concluído';
+        document.getElementById('kpiPendentes').textContent = '0';
+        document.getElementById('kpiTipoLabel').textContent = 'Filtro de Tipo Selecionado';
+        document.getElementById('kpiTipoValor').textContent = '0';
+        document.getElementById('kpiTipoSub').textContent = 'Selecione um tipo';
+
+        // Resetar Tabelas
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-400"><i data-lucide="file-spreadsheet" class="w-10 h-10 mx-auto mb-2 opacity-40"><span>Nenhum ficheiro importado ainda.</span></i></td></tr>`;
+        document.getElementById('tablePendentesBody').innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">Nenhum dispositivo pendente encontrado.</td></tr>`;
+        document.getElementById('lblCount').textContent = '0';
+        document.getElementById('lblPendentesCount').textContent = '0 Pendentes';
+
+        // Resetar selects
+        ['filterSistema', 'filterAndar', 'filterTipo'].forEach(id => {
+          document.getElementById(id).innerHTML = `<option value="">Todos</option>`;
+        });
+        document.getElementById('filterSearch').value = '';
+        document.getElementById('filterDate').value = '';
+        document.getElementById('filterStatus').value = '';
+
+        lucide.createIcons();
+      }
+    }
+
+    function populateDropdowns() {
+      let sistemas = [...new Set(processedData.map(d => d.sistema))].sort();
+      let andares = [...new Set(processedData.map(d => d.andar))].sort();
+      let tipos = [...new Set(processedData.map(d => d.tipo))].sort();
+
+      fillSelect('filterSistema', sistemas, 'Todos os Sistemas');
+      fillSelect('filterAndar', andares, 'Todos os Andares');
+      fillSelect('filterTipo', tipos, 'Todos os Tipos');
+    }
+
+    function fillSelect(elementId, items, defaultText) {
+      const select = document.getElementById(elementId);
+      select.innerHTML = `<option value="">${defaultText}</option>`;
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item;
+        opt.textContent = item;
+        select.appendChild(opt);
+      });
+    }
+
+    function clearDateFilter() {
+      document.getElementById('filterDate').value = '';
+      applyFilters();
+    }
+
+    function applyFilters() {
+      if (processedData.length === 0) return;
+
+      const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+      const sistema = document.getElementById('filterSistema').value;
+      const andar = document.getElementById('filterAndar').value;
+      const tipo = document.getElementById('filterTipo').value;
+      const status = document.getElementById('filterStatus').value;
+      const dataFiltro = document.getElementById('filterDate').value;
+
+      const filtered = processedData.filter(item => {
+        if (sistema && item.sistema !== sistema) return false;
+        if (andar && item.andar !== andar) return false;
+        if (tipo && item.tipo !== tipo) return false;
+        if (status && item.status !== status) return false;
+
+        if (dataFiltro) {
+          let parts = dataFiltro.split('-');
+          let formattedTarget = `${parts[2]}/${parts[1]}/${parts[0]}`;
+          if (item.dataJunho !== formattedTarget && item.dataISO !== dataFiltro) return false;
+        }
+
+        if (search) {
+          const fullText = `${item.sistema} ${item.andar} ${item.tipo} ${item.equipamento} ${item.periodo} ${item.dataJunho}`.toLowerCase();
+          if (!fullText.includes(search)) return false;
+        }
+        return true;
+      });
+
+      updateKPIs(filtered, tipo);
+      renderTable(filtered);
+      renderPendentesPanel();
+    }
+
+    function updateKPIs(filtered, selectedTipo) {
+      const total = processedData.length;
+      const realizados = processedData.filter(d => d.status === 'REALIZADO').length;
+      const pendentes = total - realizados;
+      const percent = total > 0 ? Math.round((realizados / total) * 100) : 0;
+
+      document.getElementById('kpiTotal').textContent = total.toLocaleString();
+      document.getElementById('kpiRealizados').textContent = realizados.toLocaleString();
+      document.getElementById('kpiPercentRealizados').textContent = `${percent}% concluído`;
+      document.getElementById('kpiPendentes').textContent = pendentes.toLocaleString();
+
+      const labelEl = document.getElementById('kpiTipoLabel');
+      const valEl = document.getElementById('kpiTipoValor');
+      const subEl = document.getElementById('kpiTipoSub');
+
+      if (selectedTipo) {
+        const itemsTipo = processedData.filter(d => d.tipo === selectedTipo);
+        const totalTipo = itemsTipo.length;
+        const realizadosTipo = itemsTipo.filter(d => d.status === 'REALIZADO').length;
+        const pendentesTipo = totalTipo - realizadosTipo;
+
+        labelEl.textContent = `Tipo: ${selectedTipo}`;
+        valEl.textContent = totalTipo.toLocaleString();
+        subEl.textContent = `✅ ${realizadosTipo} Realizados | ⏳ ${pendentesTipo} Pendentes`;
+      } else {
+        labelEl.textContent = 'Filtro de Tipo';
+        valEl.textContent = '-';
+        subEl.textContent = 'Selecione um tipo acima';
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      document.getElementById('lblCount').textContent = items.length;
+
+      if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-400">Nenhum registo encontrado com os filtros aplicados.</td></tr>`;
+        return;
+      }
+
+      items.slice(0, 500).forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+
+        let statusBadge = item.status === 'REALIZADO'
+          ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">✅ Realizado</span>`
+          : `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⏳ Pendente</span>`;
+
+        let dataColumn = item.dataJunho 
+          ? `<span class="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">${item.dataJunho}</span>` 
+          : `<span class="text-slate-400 italic text-xs">Sem data (Pendente)</span>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 text-center">${statusBadge}</td>
+          <td class="py-3 px-4 font-bold text-slate-900">${item.sistema}</td>
+          <td class="py-3 px-4">${dataColumn}</td>
+          <td class="py-3 px-4 font-medium text-slate-700">${item.andar}</td>
+          <td class="py-3 px-4 text-slate-600">${item.tipo}</td>
+          <td class="py-3 px-4 text-slate-800">${item.equipamento}</td>
+          <td class="py-3 px-4 text-center text-slate-500">${item.periodo}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    function renderPendentesPanel() {
+      const tbody = document.getElementById('tablePendentesBody');
+      tbody.innerHTML = '';
+
+      const sistema = document.getElementById('filterSistema').value;
+      const andar = document.getElementById('filterAndar').value;
+      const tipo = document.getElementById('filterTipo').value;
+
+      const pendentesList = processedData.filter(item => {
+        if (item.status !== 'REALIZADO') {
+          if (sistema && item.sistema !== sistema) return false;
+          if (andar && item.andar !== andar) return false;
+          if (tipo && item.tipo !== tipo) return false;
+          return true;
+        }
+        return false;
+      });
+
+      document.getElementById('lblPendentesCount').textContent = `${pendentesList.length} Pendentes`;
+
+      if (pendentesList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-emerald-600 font-semibold">Parabéns! Todos os dispositivos filtrados encontram-se realizados.</td></tr>`;
+        return;
+      }
+
+      pendentesList.slice(0, 300).forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-amber-50/50 transition-colors";
+        tr.innerHTML = `
+          <td class="py-2.5 px-4 font-bold text-slate-900">${item.sistema}</td>
+          <td class="py-2.5 px-4 text-amber-700 italic text-xs">Aguardando agendamento</td>
+          <td class="py-2.5 px-4 font-medium text-slate-700">${item.andar}</td>
+          <td class="py-2.5 px-4 text-slate-600">${item.tipo}</td>
+          <td class="py-2.5 px-4 text-slate-800">${item.equipamento}</td>
+          <td class="py-2.5 px-4 text-center text-slate-500">${item.periodo}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function exportToCSV() {
+      if (processedData.length === 0) {
+        alert("Não há dados para exportar.");
+        return;
+      }
+      
+      let csv = 'SISTEMA;DATA_REALIZACAO;ANDAR;TIPO;EQUIPAMENTO;PERIODO;STATUS\n';
+      const sistema = document.getElementById('filterSistema').value;
+      const andar = document.getElementById('filterAndar').value;
+      const tipo = document.getElementById('filterTipo').value;
+      const status = document.getElementById('filterStatus').value;
+      const dataFiltro = document.getElementById('filterDate').value;
+
+      const filtered = processedData.filter(item => {
+        if (sistema && item.sistema !== sistema) return false;
+        if (andar && item.andar !== andar) return false;
+        if (tipo && item.tipo !== tipo) return false;
+        if (status && item.status !== status) return false;
+        if (dataFiltro) {
+          let parts = dataFiltro.split('-');
+          let formattedTarget = `${parts[2]}/${parts[1]}/${parts[0]}`;
+          if (item.dataJunho !== formattedTarget && item.dataISO !== dataFiltro) return false;
+        }
+        return true;
+      });
+
+      filtered.forEach(d => {
+        csv += `"${d.sistema}";"${d.dataJunho}";"${d.andar}";"${d.tipo}";"${d.equipamento}";"${d.periodo}";"${d.status}"\n`;
+      });
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'Preventivas_Filtradas.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
